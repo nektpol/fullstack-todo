@@ -10,4 +10,6 @@ pub struct Todo {
     pub description: Option<String>,
     pub frequency: String,
     pub created_at: NaiveDateTime,
+    pub is_done: bool,
+    pub completed_at: Option<NaiveDateTime>,
 }
