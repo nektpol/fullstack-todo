@@ -22,3 +22,14 @@ Invoke-RestMethod -Uri "http://localhost:3000/todos" `
 Invoke-RestMethod -Uri "http://localhost:3000/todos" `
 -Method GET `
 -Headers @{ "Authorization" = "Bearer $token" }
+
+---------------------- Update todos
+4805a271-eb6f-4970-8918-6c6ffe6f96e1
+
+Invoke-RestMethod -Uri "http://localhost:3000/todos/{4805a271-eb6f-4970-8918-6c6ffe6f96e1}" `
+-Method PUT `
+-Headers @{
+    "Authorization" = "Bearer $token"
+    "Content-Type" = "application/json"
+} `
+-Body '{"title":"Updated Title","description":"Updated Desc","frequency":"weekly"}'

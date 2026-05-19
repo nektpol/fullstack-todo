@@ -6,6 +6,7 @@ use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use serde::{Deserialize};
 use std::env;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Claims {
     pub sub: String,
