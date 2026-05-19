@@ -171,6 +171,4 @@ fullstack-todo/
 
 ## Author
 
-Built by [your name].
-
-If you want, I can also generate a polished "About this project" section tailored to your personal brand and preferred job role (frontend, backend, or fullstack focus).
+Built by Nektarios (Neko) Polyzos.
