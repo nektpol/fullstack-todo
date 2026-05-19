@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    routing::{get, post, delete},
+    routing::{get, post, delete, put},
     extract::{State, Path},
     Json,
 };
@@ -14,7 +14,14 @@ use crate::models::todo::Todo;
 pub fn todo_routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_todo).get(get_todos))
-        .route("/{id}", delete(delete_todo))
+        .route("/{id}", delete(delete_todo).put(update_todo))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateTodoRequest {
+    pub title: String,
+    pub description: Option<String>,
+    pub frequency: String,
 }
 
 #[derive(Deserialize)]
@@ -113,4 +120,43 @@ pub async fn delete_todo(
     ))?;
 
     Ok(Json("Todo deleted".to_string()))
+}
+
+pub async fn update_todo(
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(todo_id): Path<Uuid>,
+    Json(payload): Json<UpdateTodoRequest>,
+) -> Result<Json<String>, (axum::http::StatusCode, String)> {
+
+    let user_id = Uuid::parse_str(&user.user_id)
+        .map_err(|_| (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Invalid user id".to_string()
+        ))?;
+
+    sqlx::query!(
+        r#"
+        UPDATE todos
+        SET
+            title = $1,
+            description = $2,
+            frequency = $3
+        WHERE id = $4
+        AND user_id = $5
+        "#,
+        payload.title,
+        payload.description,
+        payload.frequency,
+        todo_id,
+        user_id
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        e.to_string()
+    ))?;
+
+    Ok(Json("Todo updated".to_string()))
 }

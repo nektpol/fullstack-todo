@@ -1,0 +1,24 @@
+------------------Login
+
+$response = Invoke-RestMethod -Uri "http://localhost:3000/auth/login" `
+-Method POST `
+-Headers @{ "Content-Type" = "application/json" } `
+-Body '{"email":"test@test.com","password":"123456"}'
+
+$token = $response.token
+
+------------------Create new todo
+
+Invoke-RestMethod -Uri "http://localhost:3000/todos" `
+-Method POST `
+-Headers @{
+    "Authorization" = "Bearer $token"
+    "Content-Type" = "application/json"
+} `
+-Body '{"title":"Old Title","description":"Old Desc","frequency":"daily"}'
+
+-------------------- Get todos
+
+Invoke-RestMethod -Uri "http://localhost:3000/todos" `
+-Method GET `
+-Headers @{ "Authorization" = "Bearer $token" }
