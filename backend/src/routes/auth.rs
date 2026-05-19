@@ -1,10 +1,12 @@
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use argon2::{Argon2, PasswordHasher, PasswordHash, PasswordVerifier};
 use axum::{extract::State, routing::post, Json, Router, http::StatusCode};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::query;
 use uuid::Uuid;
 use std::env;
+use std::sync::LazyLock;
 
 use crate::services::jwt_service::create_token;
 use crate::state::AppState;
@@ -33,6 +35,40 @@ struct DbUser {
     password_hash: String,
 }
 
+static EMAIL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+        .expect("email regex must be valid")
+});
+
+fn is_valid_email(email: &str) -> bool {
+    EMAIL_RE.is_match(email)
+}
+
+fn password_policy_errors(password: &str) -> Vec<&'static str> {
+    let mut errors = Vec::new();
+
+    if password.len() < 12 {
+        errors.push("Password must be at least 12 characters long");
+    }
+    if !password.chars().any(|c| c.is_ascii_uppercase()) {
+        errors.push("Password must include at least one uppercase letter");
+    }
+    if !password.chars().any(|c| c.is_ascii_lowercase()) {
+        errors.push("Password must include at least one lowercase letter");
+    }
+    if !password.chars().any(|c| c.is_ascii_digit()) {
+        errors.push("Password must include at least one number");
+    }
+    if !password.chars().any(|c| !c.is_ascii_alphanumeric()) {
+        errors.push("Password must include at least one special character");
+    }
+    if password.chars().any(|c| c.is_whitespace()) {
+        errors.push("Password cannot contain spaces");
+    }
+
+    errors
+}
+
 pub fn auth_routes() -> Router<AppState> {
     Router::new()
         .route("/register", post(register))
@@ -45,6 +81,19 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, (axum::http::StatusCode, String)> {
+
+    let normalized_email = payload.email.trim().to_lowercase();
+    if !is_valid_email(&normalized_email) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid email format".to_string()));
+    }
+
+    let password_errors = password_policy_errors(&payload.password);
+    if !password_errors.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            password_errors.join(". "),
+        ));
+    }
 
     // 1. Generate user ID
     let user_id = Uuid::new_v4();
@@ -69,7 +118,7 @@ pub async fn register(
         "#,
         user_id,
         payload.username,
-        payload.email,
+        normalized_email,
         password_hash
     )
     .execute(&state.db)
@@ -116,6 +165,11 @@ pub async fn login(
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
 
+    let normalized_email = payload.email.trim().to_lowercase();
+    if !is_valid_email(&normalized_email) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid email format".to_string()));
+    }
+
     // 1. Fetch user by email
     let user = sqlx::query_as!(
         DbUser,
@@ -124,7 +178,7 @@ pub async fn login(
         FROM users
         WHERE email = $1
         "#,
-        payload.email
+        normalized_email
     )
     .fetch_optional(&state.db)
     .await
