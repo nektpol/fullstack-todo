@@ -1,7 +1,9 @@
 const BASE_URL = "http://localhost:3000";
 
-export function getToken() {
-  return localStorage.getItem("token");
+function getToken() {
+  return typeof window !== "undefined"
+    ? localStorage.getItem("token")
+    : null;
 }
 
 export async function getTodos() {
@@ -11,6 +13,7 @@ export async function getTodos() {
     },
   });
 
+  if (!res.ok) throw new Error("Failed to fetch todos");
   return res.json();
 }
 
@@ -28,6 +31,7 @@ export async function createTodo(todo: {
     body: JSON.stringify(todo),
   });
 
+  if (!res.ok) throw new Error("Failed to create todo");
   return res.json();
 }
 
@@ -39,6 +43,7 @@ export async function deleteTodo(id: string) {
     },
   });
 
+  if (!res.ok) throw new Error("Failed to delete todo");
   return res.json();
 }
 
@@ -59,5 +64,7 @@ export async function updateTodo(
     body: JSON.stringify(todo),
   });
 
+  if (!res.ok) throw new Error("Failed to update todo");
   return res.json();
 }
+

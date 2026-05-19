@@ -1,52 +1,97 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+
+import { isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const login = async () => {
-    const res = await fetch("http://localhost:3000/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
+  // ---------------------------
+  // AUTO REDIRECT IF LOGGED IN
+  // ---------------------------
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.push("/dashboard");
+    }
+  }, [router]);
 
-    const data = await res.json();
+  // ---------------------------
+  // LOGIN HANDLER
+  // ---------------------------
+  const login = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
-    if (data.token) {
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:3000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.token) {
+        toast.error("Invalid credentials");
+        return;
+      }
+
       localStorage.setItem("token", data.token);
-      alert("Login success");
-    } else {
-      alert("Login failed");
+
+      toast.success("Login successful");
+
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error("Unable to reach server");
+    } finally {
+      setLoading(false);
     }
   };
 
+  // ---------------------------
+  // UI
+  // ---------------------------
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Login</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <form
+        onSubmit={login}
+        className="bg-white p-6 rounded-xl shadow-md w-80 flex flex-col gap-3"
+      >
+        <h1 className="text-xl font-bold">Login</h1>
 
-      <input
-        placeholder="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
+        <input
+          className="border p-2 rounded"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
-      <input
-        placeholder="password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ display: "block", marginBottom: 10 }}
-      />
+        <input
+          className="border p-2 rounded"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
-      <button onClick={login}>
-        Login
-      </button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-black text-white p-2 rounded hover:opacity-80 disabled:opacity-50"
+        >
+          {loading ? "Logging in..." : "Login"}
+        </button>
+      </form>
     </div>
   );
 }
