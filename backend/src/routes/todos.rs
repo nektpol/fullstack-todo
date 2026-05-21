@@ -16,7 +16,7 @@ pub fn todo_routes() -> Router<AppState> {
     Router::new()
         .route("/", post(create_todo).get(get_todos))
         .route("/{id}", delete(delete_todo).put(update_todo))
-        .route("/{id}/complete", post(mark_todo_done))
+    .route("/{id}/complete", post(mark_todo_done).delete(unmark_todo_done))
 }
 
 struct TodoRow {
@@ -294,4 +294,59 @@ pub async fn mark_todo_done(
     ))?;
 
     Ok(Json("Todo marked as done".to_string()))
+}
+
+pub async fn unmark_todo_done(
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(todo_id): Path<Uuid>,
+) -> Result<Json<String>, (axum::http::StatusCode, String)> {
+    let user_id = Uuid::parse_str(&user.user_id)
+        .map_err(|_| (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Invalid user id".to_string()
+        ))?;
+
+    let todo = sqlx::query!(
+        r#"
+        SELECT frequency
+        FROM todos
+        WHERE id = $1 AND user_id = $2
+        "#,
+        todo_id,
+        user_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        e.to_string()
+    ))?;
+
+    let todo = todo.ok_or((
+        axum::http::StatusCode::NOT_FOUND,
+        "Todo not found".to_string(),
+    ))?;
+
+    let period_start = current_period_start_utc(&todo.frequency, Utc::now()).ok_or((
+        axum::http::StatusCode::BAD_REQUEST,
+        "Invalid frequency. Allowed: daily, weekly, monthly".to_string(),
+    ))?;
+
+    sqlx::query!(
+        r#"
+        DELETE FROM todo_completions
+        WHERE todo_id = $1 AND period_start = $2
+        "#,
+        todo_id,
+        period_start
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|e| (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        e.to_string()
+    ))?;
+
+    Ok(Json("Todo unmarked".to_string()))
 }

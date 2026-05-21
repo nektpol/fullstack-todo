@@ -83,3 +83,18 @@ export async function markTodoDone(id: string) {
   return res.json();
 }
 
+export async function unmarkTodoDone(id: string) {
+  const res = await fetch(`${BASE_URL}/todos/${id}/complete`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || `Failed to unmark todo (${res.status})`);
+  }
+  return res.json();
+}
+

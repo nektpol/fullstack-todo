@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
-import { getTodos, createTodo, deleteTodo, updateTodo, markTodoDone } from "@/lib/api";
+import {
+  getTodos,
+  createTodo,
+  deleteTodo,
+  updateTodo,
+  markTodoDone,
+  unmarkTodoDone,
+} from "@/lib/api";
 import { isAuthenticated } from "@/lib/auth";
 
 import TodoForm from "@/components/TodoForm";
@@ -26,10 +33,6 @@ export default function Dashboard() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editFrequency, setEditFrequency] = useState("daily");
 
   // ---------------------------
   // AUTH GUARD
@@ -83,10 +86,6 @@ export default function Dashboard() {
     mutationFn: ({ id, data }: any) => updateTodo(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
-      setEditingTodo(null);
-      setEditTitle("");
-      setEditDescription("");
-      setEditFrequency("daily");
       toast.success("Todo updated");
     },
     onError: () => toast.error("Failed to update todo"),
@@ -100,6 +99,18 @@ export default function Dashboard() {
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "Failed to mark todo as done";
+      toast.error(message);
+    },
+  });
+
+  const uncompleteMutation = useMutation({
+    mutationFn: unmarkTodoDone,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast.success("Todo unchecked");
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to uncheck todo";
       toast.error(message);
     },
   });
@@ -151,71 +162,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* EDIT FORM */}
-        {editingTodo && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">Edit todo</h2>
-              <button
-                onClick={() => {
-                  setEditingTodo(null);
-                  setEditTitle("");
-                  setEditDescription("");
-                  setEditFrequency("daily");
-                }}
-                className="rounded-lg px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <input
-                className="border border-slate-300 p-2 rounded"
-                placeholder="Title"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-
-              <input
-                className="border border-slate-300 p-2 rounded"
-                placeholder="Description"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-              />
-
-              <select
-                className="border border-slate-300 p-2 rounded"
-                value={editFrequency}
-                onChange={(e) => setEditFrequency(e.target.value)}
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-
-              <button
-                className="bg-slate-900 text-white rounded p-2 hover:bg-slate-800 disabled:opacity-60"
-                disabled={updateMutation.isPending || !editTitle.trim()}
-                onClick={() => {
-                  if (!editingTodo || !editTitle.trim()) return;
-
-                  updateMutation.mutate({
-                    id: editingTodo.id,
-                    data: {
-                      title: editTitle.trim(),
-                      description: editDescription.trim(),
-                      frequency: editFrequency,
-                    },
-                  });
-                }}
-              >
-                {updateMutation.isPending ? "Saving..." : "Save changes"}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* STATES */}
         {isLoading && (
           <p className="text-slate-500">Loading todos...</p>
@@ -232,13 +178,16 @@ export default function Dashboard() {
               key={todo.id}
               todo={todo}
               onDelete={(id) => deleteMutation.mutate(id)}
-              onComplete={(id) => completeMutation.mutate(id)}
-              onUpdate={(t) => {
-                setEditingTodo(t);
-                setEditTitle(t.title ?? "");
-                setEditDescription(t.description ?? "");
-                setEditFrequency(t.frequency ?? "daily");
+              onToggleComplete={(id, isDone) => {
+                if (isDone) {
+                  uncompleteMutation.mutate(id);
+                  return;
+                }
+                completeMutation.mutate(id);
+              }}
+              onUpdate={async (id, data) => {
                 setShowCreateForm(false);
+                await updateMutation.mutateAsync({ id, data });
               }}
             />
           ))}
